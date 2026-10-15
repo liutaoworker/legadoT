@@ -152,6 +152,8 @@ class ChangeChapterSourceDialog() : BaseDialogFragment(R.layout.dialog_chapter_c
             ?.isChecked = AppConfig.changeSourceLoadToc
         binding.toolBar.menu.findItem(R.id.menu_load_word_count)
             ?.isChecked = AppConfig.changeSourceLoadWordCount
+        binding.toolBar.menu.findItem(R.id.menu_check_quality)
+            ?.isChecked = AppConfig.changeSourceCheckQuality
     }
 
     private fun initView() {
@@ -236,6 +238,9 @@ class ChangeChapterSourceDialog() : BaseDialogFragment(R.layout.dialog_chapter_c
             lifecycle.currentStateFlow.first { it.isAtLeast(STARTED) }
             viewModel.searchDataFlow.conflate().collect {
                 searchBookAdapter.setItems(it)
+                if (AppConfig.changeSourceCheckQuality) {
+                    searchBookAdapter.notifyQualityChanged()
+                }
                 delay(1000)
             }
         }
@@ -273,6 +278,13 @@ class ChangeChapterSourceDialog() : BaseDialogFragment(R.layout.dialog_chapter_c
                 AppConfig.changeSourceLoadWordCount = !item.isChecked
                 item.isChecked = !item.isChecked
                 viewModel.onLoadWordCountChecked(item.isChecked)
+            }
+
+            R.id.menu_check_quality -> {
+                AppConfig.changeSourceCheckQuality = !item.isChecked
+                item.isChecked = !item.isChecked
+                viewModel.onCheckQualityChecked(item.isChecked)
+                searchBookAdapter.notifyQualityChanged()
             }
 
             R.id.menu_start_stop -> viewModel.startOrStopSearch()
@@ -360,6 +372,10 @@ class ChangeChapterSourceDialog() : BaseDialogFragment(R.layout.dialog_chapter_c
 
     override fun getBookScore(searchBook: SearchBook): Int {
         return viewModel.getBookScore(searchBook)
+    }
+
+    override fun getQualityText(searchBook: SearchBook): String? {
+        return viewModel.getQualityReport(searchBook)?.summary
     }
 
     override fun clickChapter(bookChapter: BookChapter, nextChapterUrl: String?) {

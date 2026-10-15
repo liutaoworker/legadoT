@@ -1116,6 +1116,7 @@
     <string name="only_latest_backup_s">Sao lưu cục bộ chỉ giữ tệp sao lưu mới nhất</string>
     <string name="webdav_application_authorization_error">Không thể ủy quyền ứng dụng WebDav</string>
     <string name="load_word_count">Tải số từ</string>
+    <string name="check_content_quality">Kiểm tra chất lượng nội dung</string>
     <string name="replace_exclude_scope">Phạm vi loại trừ, tên sách tùy chọn hoặc URL nguồn sách</string>
     <string name="format_js_rule">Quy tắc định dạng (formatJs)</string>
     <string name="adjust_pos">Điều chỉnh vị trí</string>

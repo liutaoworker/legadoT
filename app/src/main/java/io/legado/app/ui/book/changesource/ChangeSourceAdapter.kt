@@ -63,7 +63,7 @@ class ChangeSourceAdapter(
                 tvOrigin.text = item.originName
                 tvAuthor.text = item.author
                 tvLast.text = item.getDisplayLastChapterTitle()
-                tvCurrentChapterWordCount.text = item.chapterWordCountText
+                tvCurrentChapterWordCount.text = getChapterInfoText(item)
                 tvRespondTime.text = context.getString(R.string.respondTime, item.respondTime)
                 if (callBack.oldBookUrl == item.bookUrl) {
                     ivChecked.visible()
@@ -77,6 +77,7 @@ class ChangeSourceAdapter(
                         when (it) {
                             "name" -> tvOrigin.text = item.originName
                             "latest" -> tvLast.text = item.getDisplayLastChapterTitle()
+                            "quality" -> tvCurrentChapterWordCount.text = getChapterInfoText(item)
                             "upCurSource" -> if (callBack.oldBookUrl == item.bookUrl) {
                                 ivChecked.visible()
                             } else {
@@ -104,17 +105,34 @@ class ChangeSourceAdapter(
                 tintDislike(binding.ivBad, active = false)
             }
 
-            if (AppConfig.changeSourceLoadWordCount && !item.chapterWordCountText.isNullOrBlank()) {
+            val loadContent = AppConfig.changeSourceLoadWordCount || AppConfig.changeSourceCheckQuality
+            if (loadContent && !tvCurrentChapterWordCount.text.isNullOrBlank()) {
                 tvCurrentChapterWordCount.visible()
             } else {
                 tvCurrentChapterWordCount.gone()
             }
 
-            if (AppConfig.changeSourceLoadWordCount && item.respondTime >= 0) {
+            if (loadContent && item.respondTime >= 0) {
                 tvRespondTime.visible()
             } else {
                 tvRespondTime.gone()
             }
+        }
+    }
+
+    private fun getChapterInfoText(item: SearchBook): String? {
+        val quality = if (AppConfig.changeSourceCheckQuality) callBack.getQualityText(item) else null
+        return when {
+            quality == null -> item.chapterWordCountText
+            item.chapterWordCountText.isNullOrBlank() -> quality
+            else -> item.chapterWordCountText + "\n" + quality
+        }
+    }
+
+    /** 质量分依赖其他书源的比对结果，列表内容未变时也需要刷新 */
+    fun notifyQualityChanged() {
+        if (itemCount > 0) {
+            notifyItemRangeChanged(0, itemCount, Bundle().apply { putBoolean("quality", true) })
         }
     }
 
@@ -221,5 +239,6 @@ class ChangeSourceAdapter(
         fun deleteSource(searchBook: SearchBook)
         fun setBookScore(searchBook: SearchBook, score: Int)
         fun getBookScore(searchBook: SearchBook): Int
+        fun getQualityText(searchBook: SearchBook): String?
     }
 }

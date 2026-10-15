@@ -571,7 +571,7 @@ object BookHelp {
         return@lazy "\\s".toRegex()
     }
 
-    private fun getChapterNum(chapterName: String?): Int {
+    fun getChapterNum(chapterName: String?): Int {
         chapterName ?: return -1
         val chapterName1 = StringUtils.fullToHalf(chapterName).replace(regexA, "")
         return StringUtils.stringToInt(
@@ -600,7 +600,7 @@ object BookHelp {
         return@lazy "(?!^)(?:[〖【《〔\\[{(][^〖【《〔\\[{()〕》】〗\\]}]+)?[)〕》】〗\\]}]$|^[〖【《〔\\[{(](?:[^〖【《〔\\[{()〕》】〗\\]}]+[〕》】〗\\]})])?(?!$)".toRegex()
     }
 
-    private fun getPureChapterName(chapterName: String?): String {
+    fun getPureChapterName(chapterName: String?): String {
         return if (chapterName == null) "" else StringUtils.fullToHalf(chapterName)
             .replace(regexA, "")
             .replace(regexB, "")

@@ -1390,6 +1390,7 @@ Cron 使用 5 个字段：**分 时 日 月 周**
     <string name="only_latest_backup_s">本地备份仅保留最新备份文件</string>
     <string name="webdav_application_authorization_error">webDav应用验证失败</string>
     <string name="load_word_count">加载字数</string>
+    <string name="check_content_quality">检测正文质量</string>
     <string name="replace_exclude_scope">排除范围，选填书名或者书源 URL</string>
     <string name="format_js_rule">格式化规则(formatJs)</string>
     <string name="adjust_pos">调整位置</string>

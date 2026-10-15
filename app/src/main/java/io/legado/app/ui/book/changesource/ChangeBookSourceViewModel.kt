@@ -19,6 +19,7 @@ import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.ContentProcessor
 import io.legado.app.help.book.primaryStr
+import io.legado.app.help.book.quality.ChapterQuality
 import io.legado.app.help.book.releaseHtmlData
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.SourceConfig
@@ -95,6 +96,18 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
             .thenByDescending { it.chapterWordCount }
             .thenBy { it.originOrder }
     }
+    private val qualityComparator by lazy {
+        compareByDescending<SearchBook> { getBookScore(it) }
+            .thenByDescending { getQualityReport(it)?.score ?: -1 }
+            .thenByDescending { SourceConfig.getSourceScore(it.origin) }
+            .thenByDescending { getChapterNum(it.chapterWordCountText) }
+            .thenBy { it.originOrder }
+    }
+    private val qualityTracker by lazy {
+        ChangeSourceQualityTracker(oldBook, fromReadBookActivity)
+    }
+    private val loadContent: Boolean
+        get() = AppConfig.changeSourceLoadWordCount || AppConfig.changeSourceCheckQuality
     private var task: Job? = null
     val bookMap = ConcurrentHashMap<String, Book>()
     val searchDataFlow = callbackFlow {
@@ -133,10 +146,10 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
         }
     }.map {
         kotlin.runCatching {
-            val comparator = if (AppConfig.changeSourceLoadWordCount) {
-                wordCountComparator
-            } else {
-                defaultComparator
+            val comparator = when {
+                AppConfig.changeSourceCheckQuality -> qualityComparator
+                AppConfig.changeSourceLoadWordCount -> wordCountComparator
+                else -> defaultComparator
             }
             searchBooks.sortedWith(comparator)
         }.onFailure {
@@ -191,6 +204,7 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
             bookSourceParts.clear()
             tocMap.clear()
             bookMap.clear()
+            qualityTracker.clear()
             tocMapChapterCount = 0
             _changeSourceProgress.value = 0 to ""
             val searchGroup = AppConfig.searchGroup
@@ -217,6 +231,7 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
             tocMap.clear()
             bookMap.clear()
             tocMapChapterCount = 0
+            qualityTracker.removeOrigin(origin)
             bookSourceParts.add(appDb.bookSourceDao.getBookSourcePart(origin)!!)
             searchBooks.removeIf { it.origin == origin }
             initSearchPool()
@@ -261,7 +276,7 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
         val checkAuthor = AppConfig.changeSourceCheckAuthor
         val loadInfo = AppConfig.changeSourceLoadInfo
         val loadToc = AppConfig.changeSourceLoadToc
-        val loadWordCount = AppConfig.changeSourceLoadWordCount
+        val loadContent = loadContent
         val resultBooks = WebBook.searchBookAwait(
             source, name,
             filter = { fName, fAuthor ->
@@ -269,7 +284,7 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
             })
         resultBooks.forEach { searchBook ->
             when {
-                loadInfo || loadToc || loadWordCount -> {
+                loadInfo || loadToc || loadContent -> {
                     loadBookInfo(source, searchBook.toBook())
                 }
 
@@ -284,7 +299,7 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
         if (book.tocUrl.isEmpty()) {
             WebBook.getBookInfoAwait(source, book)
         }
-        if (AppConfig.changeSourceLoadToc || AppConfig.changeSourceLoadWordCount) {
+        if (AppConfig.changeSourceLoadToc || loadContent) {
             loadBookToc(source, book)
         } else {
             //从详情页里获取最新章节
@@ -304,7 +319,7 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
         }
         bookMap[book.primaryStr()] = book
         book.releaseHtmlData()
-        if (AppConfig.changeSourceLoadWordCount) {
+        if (loadContent) {
             loadBookWordCount(source, book, chapters)
         } else {
             val searchBook = book.toSearchBook()
@@ -332,10 +347,14 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
             val nextChapterUrl = chapters.getOrNull(chapterIndex + 1)?.url
             var content = WebBook.getContentAwait(source, book, bookChapter, nextChapterUrl, false)
             content = contentProcessor.getContent(oldBook!!, bookChapter, content, false).toString()
+            if (AppConfig.changeSourceCheckQuality) {
+                qualityTracker.add(book.primaryStr(), book.origin, bookChapter, content)
+            }
             val len = content.length
             len to "[${chapterIndex + 1}] ${title}\n字数：${len}"
         } catch (t: Throwable) {
             if (t is CancellationException) throw t
+            qualityTracker.remove(book.primaryStr())
             -1 to "[${chapterIndex + 1}] ${title}\n获取字数失败：${t.localizedMessage}"
         }
         val endTime = System.currentTimeMillis()
@@ -349,22 +368,33 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
 
     fun onLoadWordCountChecked(isChecked: Boolean) {
         if (isChecked) {
-            startRefreshList(true)
+            startRefreshList { it.chapterWordCountText == null }
         }
+    }
+
+    fun onCheckQualityChecked(isChecked: Boolean) {
+        if (isChecked) {
+            startRefreshList { !qualityTracker.contains(it.primaryStr()) }
+        } else {
+            searchCallback?.upAdapter()
+        }
+    }
+
+    fun getQualityReport(searchBook: SearchBook): ChapterQuality.Report? {
+        return qualityTracker.report(searchBook.primaryStr())
     }
 
     /**
      * 刷新列表
+     * @param filter 只刷新符合条件的书籍，为空时刷新全部
      */
-    fun startRefreshList(onlyRefreshNoWordCountBook: Boolean = false) {
+    fun startRefreshList(filter: ((SearchBook) -> Boolean)? = null) {
         execute {
             stopSearch()
             searchBookList.clear()
-            if (onlyRefreshNoWordCountBook) {
-                searchBooks.filterTo(searchBookList) {
-                    it.chapterWordCountText == null
-                }
-                searchBooks.removeIf { it.chapterWordCountText == null }
+            if (filter != null) {
+                searchBooks.filterTo(searchBookList, filter)
+                searchBooks.removeIf(filter)
             } else {
                 searchBookList.addAll(searchBooks)
                 searchBooks.clear()

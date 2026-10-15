@@ -41,6 +41,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/menu_check_quality"
+        android:title="@string/check_content_quality"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/menu_load_info"
         android:title="@string/load_info"
         android:checkable="true"
