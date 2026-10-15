@@ -15,8 +15,8 @@ import kotlin.math.min
  * 前文参考取自当前书籍已缓存的章节，多源比对只在同一章节（按章节序号/纯章节名分组）之间进行。
  */
 class ChangeSourceQualityTracker(
-    private val oldBook: Book?,
-    private val fromReadBookActivity: Boolean
+    private val oldBook: () -> Book?,
+    private val fromReadBookActivity: () -> Boolean
 ) {
 
     private class Entry(
@@ -105,10 +105,10 @@ class ChangeSourceQualityTracker(
     }
 
     private fun loadReference(): Reference {
-        val book = oldBook ?: return Reference(null, emptyList())
+        val book = oldBook() ?: return Reference(null, emptyList())
         val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
         if (chapters.isEmpty()) return Reference(null, emptyList())
-        val target = if (fromReadBookActivity) {
+        val target = if (fromReadBookActivity()) {
             book.durChapterIndex.coerceIn(0, chapters.lastIndex)
         } else {
             chapters.lastIndex

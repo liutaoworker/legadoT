@@ -103,9 +103,7 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
             .thenByDescending { getChapterNum(it.chapterWordCountText) }
             .thenBy { it.originOrder }
     }
-    private val qualityTracker by lazy {
-        ChangeSourceQualityTracker(oldBook, fromReadBookActivity)
-    }
+    private val qualityTracker = ChangeSourceQualityTracker({ oldBook }, { fromReadBookActivity })
     private val loadContent: Boolean
         get() = AppConfig.changeSourceLoadWordCount || AppConfig.changeSourceCheckQuality
     private var task: Job? = null
