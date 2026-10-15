@@ -8,10 +8,12 @@ import kotlin.math.roundToInt
 /**
  * 章节正文质量检测，纯 JVM 实现，便于单测。
  *
- * 三类信号：
+ * 评分信号：
  * 1. 单章文本特征：长度、乱码、重复段落、广告行、防盗占位文案；
- * 2. 与本书前文的连续性：前文高频专有词在本章的命中率，以及是否与本书其他章节重复（错位）；
- * 3. 多源交叉比对：同一章在不同书源的正文互相投票，少数派判为错乱。
+ * 2. 与本书前文的连续性：前文高频专有词在本章的命中率，以及是否与本书其他章节重复（错位）。
+ *
+ * 多源比对只统计内容相同的书源数量用于展示，不参与评分：
+ * 很多书源转载自同一站点，错误文本也一模一样，按多数投票会把错误内容判为可信。
  */
 object ChapterQuality {
 
@@ -52,20 +54,18 @@ object ChapterQuality {
     )
 
     class Consensus(
-        /** 与本源内容一致的其他源数量 */
+        /** 与本源内容相同的其他源数量 */
         val agree: Int,
         /** 参与比对的其他源数量 */
-        val compared: Int,
-        /** 本源与所有源都不一致，而其他源之间存在一致的版本 */
-        val outlier: Boolean
+        val compared: Int
     )
 
     class Report(val score: Int, val issues: List<String>, val consensus: Consensus?) {
         val summary: String
             get() = buildString {
                 append("质量：").append(score)
-                consensus?.takeIf { it.compared > 0 }?.let {
-                    append("（").append(it.agree).append('/').append(it.compared).append(" 源一致）")
+                consensus?.takeIf { it.agree > 0 }?.let {
+                    append("（与 ").append(it.agree).append(" 个源内容相同）")
                 }
                 if (issues.isNotEmpty()) {
                     append('\n').append(issues.joinToString("；"))
@@ -145,7 +145,7 @@ object ChapterQuality {
     }
 
     /**
-     * 比对同组（同一章节）候选正文，返回每个候选的一致性结果。
+     * 比对同组（同一章节）候选正文，统计每个候选与多少个其他候选内容相同。
      * 只有一个候选的组不参与投票，返回结果中也不包含它。
      */
     fun <K> crossCheck(
@@ -155,32 +155,25 @@ object ChapterQuality {
         val keys = fingerprints.keys.filter { !fingerprints.getValue(it).isEmpty }
         if (keys.size < 2) return emptyMap()
         val agree = IntArray(keys.size)
-        val matrix = Array(keys.size) { BooleanArray(keys.size) }
         for (i in keys.indices) {
             for (j in i + 1 until keys.size) {
                 val same = fingerprints.getValue(keys[i])
                     .similarity(fingerprints.getValue(keys[j])) >= threshold
                 if (same) {
-                    matrix[i][j] = true
-                    matrix[j][i] = true
                     agree[i]++
                     agree[j]++
                 }
             }
         }
         return keys.withIndex().associate { (i, key) ->
-            val othersAgree = keys.indices.any { j -> j != i && agree[j] - (if (matrix[i][j]) 1 else 0) > 0 }
-            key to Consensus(
-                agree = agree[i],
-                compared = keys.size - 1,
-                outlier = agree[i] == 0 && othersAgree
-            )
+            key to Consensus(agree = agree[i], compared = keys.size - 1)
         }
     }
 
     /**
      * @param continuity 与本书前文的连续性，0~1，越接近 1 越像同一本书；null 表示没有前文可参考
      * @param misplacedChapter 与本书另一章节重复时，该章节的标题
+     * @param consensus 多源比对结果，仅用于展示，不影响评分
      */
     fun evaluate(
         stats: TextStats,
@@ -224,14 +217,6 @@ object ChapterQuality {
         if (misplacedChapter != null) {
             score -= 60
             issues.add("与「$misplacedChapter」内容重复")
-        }
-        if (consensus != null && consensus.compared > 0) {
-            if (consensus.outlier) {
-                score -= 50
-                issues.add("与其他书源内容不一致")
-            } else if (consensus.agree > 0) {
-                score += min(10, consensus.agree * 3)
-            }
         }
         return Report(score.coerceIn(0.0, 100.0).roundToInt(), issues, consensus)
     }

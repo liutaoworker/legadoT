@@ -1,7 +1,6 @@
 package io.legado.app.help.book.quality
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -70,39 +69,41 @@ class ChapterQualityTest {
     }
 
     @Test
-    fun crossCheckFlagsMinorityVersion() {
-        val right = chapter(6, bookA)
+    fun crossCheckCountsSameContent() {
+        val copied = chapter(6, bookA)
         val fingerprints = mapOf(
-            "s1" to ChapterQuality.fingerprint(right),
-            "s2" to ChapterQuality.fingerprint(right.replace("。", ".")),
-            "s3" to ChapterQuality.fingerprint(right + "\n求月票"),
-            "bad" to ChapterQuality.fingerprint(chapter(7, bookA))
+            "s1" to ChapterQuality.fingerprint(copied),
+            "s2" to ChapterQuality.fingerprint(copied.replace("。", ".")),
+            "s3" to ChapterQuality.fingerprint(copied + "\n求月票"),
+            "other" to ChapterQuality.fingerprint(chapter(7, bookA))
         )
         val result = ChapterQuality.crossCheck(fingerprints)
-        assertTrue(result.getValue("bad").outlier)
-        assertEquals(0, result.getValue("bad").agree)
-        assertFalse(result.getValue("s1").outlier)
         assertEquals(2, result.getValue("s1").agree)
-
-        val report = ChapterQuality.evaluate(
-            ChapterQuality.analyzeText(chapter(7, bookA)),
-            consensus = result.getValue("bad")
-        )
-        assertTrue(report.issues.contains("与其他书源内容不一致"))
-        assertTrue(report.score <= 50)
+        assertEquals(3, result.getValue("s1").compared)
+        assertEquals(0, result.getValue("other").agree)
+        assertTrue(ChapterQuality.crossCheck(mapOf("a" to ChapterQuality.fingerprint(copied))).isEmpty())
     }
 
     @Test
-    fun twoDisagreeingSourcesAreNotOutliers() {
-        val result = ChapterQuality.crossCheck(
-            mapOf(
-                "a" to ChapterQuality.fingerprint(chapter(8, bookA)),
-                "b" to ChapterQuality.fingerprint(chapter(9, bookA))
-            )
+    fun sameContentAcrossSourcesDoesNotAffectScore() {
+        val profile = ChapterQuality.BookProfile.build((20..25).map { chapter(it, bookA) })!!
+        val wrong = chapter(26, bookB)
+        val stats = ChapterQuality.analyzeText(wrong)
+        val continuity = profile.continuity(wrong)
+        val alone = ChapterQuality.evaluate(stats, continuity)
+        val copiedByMany = ChapterQuality.evaluate(
+            stats, continuity, consensus = ChapterQuality.Consensus(agree = 5, compared = 6)
         )
-        assertFalse(result.getValue("a").outlier)
-        assertFalse(result.getValue("b").outlier)
-        assertTrue(ChapterQuality.crossCheck(mapOf("a" to ChapterQuality.fingerprint(chapter(8, bookA)))).isEmpty())
+        assertEquals(alone.score, copiedByMany.score)
+        assertEquals(alone.issues, copiedByMany.issues)
+        assertTrue(copiedByMany.summary.contains("与 5 个源内容相同"))
+
+        val right = chapter(27, bookA)
+        val unique = ChapterQuality.evaluate(
+            ChapterQuality.analyzeText(right), profile.continuity(right),
+            consensus = ChapterQuality.Consensus(agree = 0, compared = 6)
+        )
+        assertTrue(unique.score > copiedByMany.score)
     }
 
     @Test
