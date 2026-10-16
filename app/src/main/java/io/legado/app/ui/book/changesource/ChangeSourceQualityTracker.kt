@@ -12,7 +12,7 @@ import kotlin.math.min
 
 /**
  * 换源时各书源抽检章节的正文质量。
- * 前文参考取自当前书籍已缓存的章节，多源比对只在同一章节（按章节序号/纯章节名分组）之间进行。
+ * 前文参考取自当前书籍已缓存的章节；疑似同源分组只在同一章节（按章节序号/纯章节名）之间进行。
  */
 class ChangeSourceQualityTracker(
     private val oldBook: () -> Book?,
@@ -23,9 +23,7 @@ class ChangeSourceQualityTracker(
         val origin: String,
         val groupKey: String,
         val fingerprint: ChapterQuality.Fingerprint,
-        val stats: ChapterQuality.TextStats,
-        val continuity: Double?,
-        val misplacedChapter: String?
+        val report: ChapterQuality.Report
     )
 
     private class Reference(
@@ -37,7 +35,7 @@ class ChangeSourceQualityTracker(
     private val version = AtomicInteger()
 
     @Volatile
-    private var cache: Pair<Int, Map<String, ChapterQuality.Report>>? = null
+    private var groupCache: Pair<Int, Map<String, String>>? = null
 
     private val reference by lazy { loadReference() }
 
@@ -53,9 +51,11 @@ class ChangeSourceQualityTracker(
             origin = origin,
             groupKey = if (chapterNum > 0) "#$chapterNum" else BookHelp.getPureChapterName(chapter.title),
             fingerprint = fingerprint,
-            stats = ChapterQuality.analyzeText(content),
-            continuity = ref.profile?.continuity(content),
-            misplacedChapter = misplaced
+            report = ChapterQuality.evaluate(
+                stats = ChapterQuality.analyzeText(content),
+                continuity = ref.profile?.continuity(content),
+                misplacedChapter = misplaced
+            )
         )
         version.incrementAndGet()
     }
@@ -75,28 +75,27 @@ class ChangeSourceQualityTracker(
 
     fun contains(key: String): Boolean = entries.containsKey(key)
 
-    fun report(key: String): ChapterQuality.Report? = reports()[key]
+    fun report(key: String): ChapterQuality.Report? = entries[key]?.report
 
-    private fun reports(): Map<String, ChapterQuality.Report> {
+    /**
+     * 疑似同源分组：抽检章节内容相同的书源归为一组。
+     * @return 书源 key → 组 id，只包含成员数不少于 2 的组
+     */
+    fun sameSourceGroups(): Map<String, String> {
         val current = version.get()
-        cache?.let { (cachedVersion, reports) ->
-            if (cachedVersion == current) return reports
+        groupCache?.let { (cachedVersion, groups) ->
+            if (cachedVersion == current) return groups
         }
-        val snapshot = HashMap(entries)
-        val consensus = HashMap<String, ChapterQuality.Consensus>()
-        snapshot.entries.groupBy { it.value.groupKey }.values.forEach { group ->
-            consensus.putAll(ChapterQuality.crossCheck(group.associate { it.key to it.value.fingerprint }))
+        val groups = HashMap<String, String>()
+        HashMap(entries).entries.groupBy { it.value.groupKey }.forEach { (chapterKey, chapterEntries) ->
+            ChapterQuality.sameContentGroups(chapterEntries.associate { it.key to it.value.fingerprint })
+                .forEach { members ->
+                    val groupId = chapterKey + "|" + members.min()
+                    members.forEach { groups[it] = groupId }
+                }
         }
-        val reports = snapshot.mapValues { (key, entry) ->
-            ChapterQuality.evaluate(
-                stats = entry.stats,
-                continuity = entry.continuity,
-                misplacedChapter = entry.misplacedChapter,
-                consensus = consensus[key]
-            )
-        }
-        cache = current to reports
-        return reports
+        groupCache = current to groups
+        return groups
     }
 
     private fun isSameChapter(a: BookChapter, b: BookChapter, bNum: Int): Boolean {
@@ -131,3 +130,11 @@ class ChangeSourceQualityTracker(
         private const val PROFILE_CHAPTERS = 8
     }
 }
+
+/** 换源列表中疑似同源组的展示状态 */
+class SourceGroupItem(
+    val groupId: String,
+    val size: Int,
+    val isHead: Boolean,
+    val expanded: Boolean
+)

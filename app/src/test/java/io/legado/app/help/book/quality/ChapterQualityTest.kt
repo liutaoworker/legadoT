@@ -69,41 +69,37 @@ class ChapterQualityTest {
     }
 
     @Test
-    fun crossCheckCountsSameContent() {
+    fun sameContentSourcesAreGrouped() {
         val copied = chapter(6, bookA)
-        val fingerprints = mapOf(
+        val another = chapter(7, bookA)
+        val fingerprints = linkedMapOf(
             "s1" to ChapterQuality.fingerprint(copied),
+            "x1" to ChapterQuality.fingerprint(another),
             "s2" to ChapterQuality.fingerprint(copied.replace("。", ".")),
+            "lone" to ChapterQuality.fingerprint(chapter(8, bookA)),
             "s3" to ChapterQuality.fingerprint(copied + "\n求月票"),
-            "other" to ChapterQuality.fingerprint(chapter(7, bookA))
+            "x2" to ChapterQuality.fingerprint(another.replace("，", ",")),
+            "empty" to ChapterQuality.fingerprint("")
         )
-        val result = ChapterQuality.crossCheck(fingerprints)
-        assertEquals(2, result.getValue("s1").agree)
-        assertEquals(3, result.getValue("s1").compared)
-        assertEquals(0, result.getValue("other").agree)
-        assertTrue(ChapterQuality.crossCheck(mapOf("a" to ChapterQuality.fingerprint(copied))).isEmpty())
+        val groups = ChapterQuality.sameContentGroups(fingerprints).map { it.toSet() }.toSet()
+        assertEquals(setOf(setOf("s1", "s2", "s3"), setOf("x1", "x2")), groups)
+        assertTrue(ChapterQuality.sameContentGroups(mapOf("a" to ChapterQuality.fingerprint(copied))).isEmpty())
     }
 
     @Test
-    fun sameContentAcrossSourcesDoesNotAffectScore() {
-        val profile = ChapterQuality.BookProfile.build((20..25).map { chapter(it, bookA) })!!
-        val wrong = chapter(26, bookB)
-        val stats = ChapterQuality.analyzeText(wrong)
-        val continuity = profile.continuity(wrong)
-        val alone = ChapterQuality.evaluate(stats, continuity)
-        val copiedByMany = ChapterQuality.evaluate(
-            stats, continuity, consensus = ChapterQuality.Consensus(agree = 5, compared = 6)
+    fun sameContentGroupIsTransitive() {
+        val base = chapter(9, bookA, paragraphs = 40).lines()
+        val a = base.subList(0, 30).joinToString("\n")
+        val b = base.subList(5, 35).joinToString("\n")
+        val c = base.subList(10, 40).joinToString("\n")
+        val fa = ChapterQuality.fingerprint(a)
+        val fc = ChapterQuality.fingerprint(c)
+        val groups = ChapterQuality.sameContentGroups(
+            mapOf("a" to fa, "b" to ChapterQuality.fingerprint(b), "c" to fc),
+            threshold = 0.5
         )
-        assertEquals(alone.score, copiedByMany.score)
-        assertEquals(alone.issues, copiedByMany.issues)
-        assertTrue(copiedByMany.summary.contains("与 5 个源内容相同"))
-
-        val right = chapter(27, bookA)
-        val unique = ChapterQuality.evaluate(
-            ChapterQuality.analyzeText(right), profile.continuity(right),
-            consensus = ChapterQuality.Consensus(agree = 0, compared = 6)
-        )
-        assertTrue(unique.score > copiedByMany.score)
+        assertTrue(fa.similarity(fc) < 0.5)
+        assertEquals(listOf(setOf("a", "b", "c")), groups.map { it.toSet() })
     }
 
     @Test

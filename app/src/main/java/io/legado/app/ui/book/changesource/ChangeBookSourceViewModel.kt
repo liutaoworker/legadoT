@@ -104,6 +104,10 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
             .thenBy { it.originOrder }
     }
     private val qualityTracker = ChangeSourceQualityTracker({ oldBook }, { fromReadBookActivity })
+    private val expandedGroups: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    @Volatile
+    private var groupItems: Map<String, SourceGroupItem> = emptyMap()
     private val loadContent: Boolean
         get() = AppConfig.changeSourceLoadWordCount || AppConfig.changeSourceCheckQuality
     private var task: Job? = null
@@ -149,7 +153,13 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
                 AppConfig.changeSourceLoadWordCount -> wordCountComparator
                 else -> defaultComparator
             }
-            searchBooks.sortedWith(comparator)
+            val sorted = searchBooks.sortedWith(comparator)
+            if (AppConfig.changeSourceCheckQuality) {
+                groupSameSource(sorted)
+            } else {
+                groupItems = emptyMap()
+                sorted
+            }
         }.onFailure {
             AppLog.put("换源排序出错\n${it.localizedMessage}", it)
         }.getOrDefault(searchBooks)
@@ -380,6 +390,51 @@ open class ChangeBookSourceViewModel(application: Application) : BaseViewModel(a
 
     fun getQualityReport(searchBook: SearchBook): ChapterQuality.Report? {
         return qualityTracker.report(searchBook.primaryStr())
+    }
+
+    fun getGroupItem(searchBook: SearchBook): SourceGroupItem? {
+        return groupItems[searchBook.primaryStr()]
+    }
+
+    fun toggleGroup(searchBook: SearchBook) {
+        val groupId = groupItems[searchBook.primaryStr()]?.groupId ?: return
+        if (!expandedGroups.remove(groupId)) {
+            expandedGroups.add(groupId)
+        }
+        searchCallback?.upAdapter()
+    }
+
+    /**
+     * 疑似同源的书源折叠为一组，组内排序最靠前的作为组头，展开后组员紧跟组头显示
+     */
+    private fun groupSameSource(sorted: List<SearchBook>): List<SearchBook> {
+        val groupIds = qualityTracker.sameSourceGroups()
+        if (groupIds.isEmpty()) {
+            groupItems = emptyMap()
+            return sorted
+        }
+        val members = sorted.groupBy { groupIds[it.primaryStr()] }
+        val items = HashMap<String, SourceGroupItem>()
+        val emitted = HashSet<String>()
+        val result = ArrayList<SearchBook>(sorted.size)
+        for (book in sorted) {
+            val groupId = groupIds[book.primaryStr()]
+            val group = groupId?.let { members[it] }
+            if (groupId == null || group == null || group.size < 2) {
+                result.add(book)
+                continue
+            }
+            if (!emitted.add(groupId)) continue
+            val expanded = groupId in expandedGroups
+            group.forEachIndexed { index, member ->
+                if (index == 0 || expanded) {
+                    result.add(member)
+                    items[member.primaryStr()] = SourceGroupItem(groupId, group.size, index == 0, expanded)
+                }
+            }
+        }
+        groupItems = items
+        return result
     }
 
     /**

@@ -378,6 +378,14 @@ class ChangeChapterSourceDialog() : BaseDialogFragment(R.layout.dialog_chapter_c
         return viewModel.getQualityReport(searchBook)?.summary
     }
 
+    override fun getGroupItem(searchBook: SearchBook): SourceGroupItem? {
+        return viewModel.getGroupItem(searchBook)
+    }
+
+    override fun toggleGroup(searchBook: SearchBook) {
+        viewModel.toggleGroup(searchBook)
+    }
+
     override fun clickChapter(bookChapter: BookChapter, nextChapterUrl: String?) {
         searchBook?.let {
             binding.loadingToc.visible()

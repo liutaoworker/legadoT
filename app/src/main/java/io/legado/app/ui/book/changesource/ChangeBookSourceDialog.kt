@@ -405,6 +405,14 @@ class ChangeBookSourceDialog() : BaseDialogFragment(R.layout.dialog_book_change_
         return viewModel.getQualityReport(searchBook)?.summary
     }
 
+    override fun getGroupItem(searchBook: SearchBook): SourceGroupItem? {
+        return viewModel.getGroupItem(searchBook)
+    }
+
+    override fun toggleGroup(searchBook: SearchBook) {
+        viewModel.toggleGroup(searchBook)
+    }
+
     private fun changeSource(searchBook: SearchBook, onSuccess: (() -> Unit)? = null) {
         waitDialog.setText(R.string.load_toc)
         waitDialog.show()

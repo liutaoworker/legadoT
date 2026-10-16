@@ -65,6 +65,7 @@ class ChangeSourceAdapter(
                 tvLast.text = item.getDisplayLastChapterTitle()
                 tvCurrentChapterWordCount.text = getChapterInfoText(item)
                 tvRespondTime.text = context.getString(R.string.respondTime, item.respondTime)
+                bindGroup(binding, item)
                 if (callBack.oldBookUrl == item.bookUrl) {
                     ivChecked.visible()
                 } else {
@@ -77,7 +78,10 @@ class ChangeSourceAdapter(
                         when (it) {
                             "name" -> tvOrigin.text = item.originName
                             "latest" -> tvLast.text = item.getDisplayLastChapterTitle()
-                            "quality" -> tvCurrentChapterWordCount.text = getChapterInfoText(item)
+                            "quality" -> {
+                                tvCurrentChapterWordCount.text = getChapterInfoText(item)
+                                bindGroup(binding, item)
+                            }
                             "upCurSource" -> if (callBack.oldBookUrl == item.bookUrl) {
                                 ivChecked.visible()
                             } else {
@@ -129,7 +133,30 @@ class ChangeSourceAdapter(
         }
     }
 
-    /** 质量分依赖其他书源的比对结果，列表内容未变时也需要刷新 */
+    private fun bindGroup(binding: ItemChangeSourceBinding, item: SearchBook) = binding.run {
+        val group = if (AppConfig.changeSourceCheckQuality) callBack.getGroupItem(item) else null
+        root.setPaddingRelative(if (group != null && !group.isHead) 24.dpToPx() else 0, 0, 0, 0)
+        when {
+            group == null -> tvGroup.gone()
+            group.isHead -> {
+                tvGroup.visible()
+                tvGroup.isClickable = true
+                tvGroup.text = context.getString(
+                    if (group.expanded) R.string.same_source_group_expanded
+                    else R.string.same_source_group_collapsed,
+                    group.size
+                )
+            }
+
+            else -> {
+                tvGroup.visible()
+                tvGroup.isClickable = false
+                tvGroup.setText(R.string.same_source_group_member)
+            }
+        }
+    }
+
+    /** 质量分与疑似同源分组依赖其他书源的结果，列表内容未变时也需要刷新 */
     fun notifyQualityChanged() {
         if (itemCount > 0) {
             notifyItemRangeChanged(0, itemCount, Bundle().apply { putBoolean("quality", true) })
@@ -179,6 +206,13 @@ class ChangeSourceAdapter(
                 binding.ivGood.visible()
                 getItem(holder.layoutPosition)?.let {
                     callBack.setBookScore(it, 0)
+                }
+            }
+        }
+        binding.tvGroup.setOnClickListener {
+            getItem(holder.layoutPosition)?.let {
+                if (callBack.getGroupItem(it)?.isHead == true) {
+                    callBack.toggleGroup(it)
                 }
             }
         }
@@ -240,5 +274,7 @@ class ChangeSourceAdapter(
         fun setBookScore(searchBook: SearchBook, score: Int)
         fun getBookScore(searchBook: SearchBook): Int
         fun getQualityText(searchBook: SearchBook): String?
+        fun getGroupItem(searchBook: SearchBook): SourceGroupItem?
+        fun toggleGroup(searchBook: SearchBook)
     }
 }
