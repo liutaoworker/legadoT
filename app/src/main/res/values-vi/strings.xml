@@ -1119,7 +1119,7 @@
     <string name="check_content_quality">Kiểm tra chất lượng nội dung</string>
     <string name="same_source_group_collapsed">%1$d nguồn có nội dung giống nhau ▸ Mở rộng</string>
     <string name="same_source_group_expanded">%1$d nguồn có nội dung giống nhau ▾ Thu gọn</string>
-    <string name="same_source_group_member">└ Cùng nội dung với nguồn đầu nhóm</string>
+    <string name="same_source_group_member">└ Thành viên nhóm cùng nguồn</string>
     <string name="replace_exclude_scope">Phạm vi loại trừ, tên sách tùy chọn hoặc URL nguồn sách</string>
     <string name="format_js_rule">Quy tắc định dạng (formatJs)</string>
     <string name="adjust_pos">Điều chỉnh vị trí</string>

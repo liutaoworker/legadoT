@@ -88,7 +88,9 @@ class ChangeSourceQualityTracker(
         }
         val groups = HashMap<String, String>()
         HashMap(entries).entries.groupBy { it.value.groupKey }.forEach { (chapterKey, chapterEntries) ->
-            ChapterQuality.sameContentGroups(chapterEntries.associate { it.key to it.value.fingerprint })
+            val ordered = chapterEntries
+                .sortedWith(compareByDescending<Map.Entry<String, Entry>> { it.value.report.score }.thenBy { it.key })
+            ChapterQuality.sameContentGroups(ordered.associateTo(LinkedHashMap()) { it.key to it.value.fingerprint })
                 .forEach { members ->
                     val groupId = chapterKey + "|" + members.min()
                     members.forEach { groups[it] = groupId }

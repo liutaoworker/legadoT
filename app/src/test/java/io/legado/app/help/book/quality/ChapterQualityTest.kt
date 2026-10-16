@@ -87,19 +87,21 @@ class ChapterQualityTest {
     }
 
     @Test
-    fun sameContentGroupIsTransitive() {
+    fun partiallyOverlappingContentIsNotChained() {
         val base = chapter(9, bookA, paragraphs = 40).lines()
         val a = base.subList(0, 30).joinToString("\n")
-        val b = base.subList(5, 35).joinToString("\n")
         val c = base.subList(10, 40).joinToString("\n")
-        val fa = ChapterQuality.fingerprint(a)
-        val fc = ChapterQuality.fingerprint(c)
+        val bridge = base.joinToString("\n")
         val groups = ChapterQuality.sameContentGroups(
-            mapOf("a" to fa, "b" to ChapterQuality.fingerprint(b), "c" to fc),
-            threshold = 0.5
+            linkedMapOf(
+                "a" to ChapterQuality.fingerprint(a),
+                "bridge" to ChapterQuality.fingerprint(bridge),
+                "c" to ChapterQuality.fingerprint(c),
+                "c2" to ChapterQuality.fingerprint(c.replace("，", ","))
+            )
         )
-        assertTrue(fa.similarity(fc) < 0.5)
-        assertEquals(listOf(setOf("a", "b", "c")), groups.map { it.toSet() })
+        assertTrue(ChapterQuality.fingerprint(a).similarity(ChapterQuality.fingerprint(c)) < 0.6)
+        assertEquals(listOf(listOf("a", "bridge"), listOf("c", "c2")), groups)
     }
 
     @Test

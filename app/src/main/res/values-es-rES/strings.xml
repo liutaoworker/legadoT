@@ -1123,7 +1123,7 @@
     <string name="check_content_quality">Comprobar calidad del contenido</string>
     <string name="same_source_group_collapsed">%1$d fuentes con contenido idéntico ▸ Expandir</string>
     <string name="same_source_group_expanded">%1$d fuentes con contenido idéntico ▾ Contraer</string>
-    <string name="same_source_group_member">└ Mismo contenido que la primera del grupo</string>
+    <string name="same_source_group_member">└ Miembro del grupo de mismo origen</string>
     <string name="replace_exclude_scope">排除范围，选填书名或者书源 URL</string>
     <string name="format_js_rule">格式化规则(formatJs)</string>
     <string name="adjust_pos">调整位置</string>

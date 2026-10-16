@@ -20,8 +20,11 @@ object ChapterQuality {
     private const val SIGNATURE_SIZE = 64
     private const val SHINGLE_SIZE = 3
 
-    /** 同一章不同来源的正文相似度一般远高于此值，不同章节一般远低于此值 */
-    const val SAME_CONTENT_SIMILARITY = 0.3
+    /**
+     * 同源转载的正文仅有排版、广告差异，相似度一般在 0.75 以上，不同章节一般低于 0.1；
+     * 取较高的值，避免只是部分重叠（如多抓了半章）的正文被归为同源
+     */
+    const val SAME_CONTENT_SIMILARITY = 0.6
 
     /** 与本书另一章节相似度超过此值视为错位重复 */
     const val MISPLACED_SIMILARITY = 0.5
@@ -135,35 +138,24 @@ object ChapterQuality {
     }
 
     /**
-     * 把同一章节的候选正文按内容相同（疑似同源转载）聚类，相似关系可传递。
-     * 只返回成员数不少于 2 的组，组内顺序与输入顺序一致。
+     * 把同一章节的候选正文按内容相同（疑似同源转载）分组。
+     * 按输入顺序依次处理，候选只与各组组头比较，与组头相似才入组，否则自成新组；
+     * 不做传递合并，避免 A 像 B、B 像 C 时把内容不同的 A、C 连成一组。
+     * 只返回成员数不少于 2 的组，组头在首位。
      */
     fun <K> sameContentGroups(
         fingerprints: Map<K, Fingerprint>,
         threshold: Double = SAME_CONTENT_SIMILARITY
     ): List<List<K>> {
-        val keys = fingerprints.keys.filter { !fingerprints.getValue(it).isEmpty }
-        if (keys.size < 2) return emptyList()
-        val parent = IntArray(keys.size) { it }
-        fun find(i: Int): Int {
-            var x = i
-            while (parent[x] != x) {
-                parent[x] = parent[parent[x]]
-                x = parent[x]
+        val groups = arrayListOf<MutableList<K>>()
+        fingerprints.forEach { (key, fingerprint) ->
+            if (fingerprint.isEmpty) return@forEach
+            val group = groups.firstOrNull {
+                fingerprints.getValue(it.first()).similarity(fingerprint) >= threshold
             }
-            return x
+            if (group != null) group.add(key) else groups.add(mutableListOf(key))
         }
-        for (i in keys.indices) {
-            for (j in i + 1 until keys.size) {
-                if (find(i) == find(j)) continue
-                if (fingerprints.getValue(keys[i]).similarity(fingerprints.getValue(keys[j])) >= threshold) {
-                    parent[find(j)] = find(i)
-                }
-            }
-        }
-        return keys.indices.groupBy { find(it) }.values
-            .filter { it.size >= 2 }
-            .map { group -> group.map { keys[it] } }
+        return groups.filter { it.size >= 2 }
     }
 
     /**

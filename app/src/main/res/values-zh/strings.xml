@@ -1393,7 +1393,7 @@ Cron 使用 5 个字段：**分 时 日 月 周**
     <string name="check_content_quality">检测正文质量</string>
     <string name="same_source_group_collapsed">疑似同源：%1$d 个源内容相同 ▸ 展开</string>
     <string name="same_source_group_expanded">疑似同源：%1$d 个源内容相同 ▾ 收起</string>
-    <string name="same_source_group_member">└ 与组内第一个源内容相同</string>
+    <string name="same_source_group_member">└ 同源组成员</string>
     <string name="replace_exclude_scope">排除范围，选填书名或者书源 URL</string>
     <string name="format_js_rule">格式化规则(formatJs)</string>
     <string name="adjust_pos">调整位置</string>
